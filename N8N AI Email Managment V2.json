@@ -1,0 +1,263 @@
+{
+  "name": "N8N AI Email Managment V2",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -576,
+        144
+      ],
+      "id": "4d3e73f8-f966-49ae-a544-27cb0f744eda",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "HwIjKCniygOjVZuR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\"label\": \"Finance\",\n  \"summary\": \"The sender is following up about a pending invoice and asking when it will be paid. They offered to resend it if needed.\",\n  \"response\": \"Hi there! Thanks for following up. Your invoice has been received and is currently being processed — payment should be issued by the end of the week. Let me know if you need anything else.\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        352
+      ],
+      "id": "af0bf1b6-e5d5-4713-9706-e4d09705f392",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        352
+      ],
+      "id": "d30c4040-d073-4468-8c29-4343e4827b64",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "IFuS0OMBdaTai4J9",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "label"
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.1,
+      "position": [
+        192,
+        352
+      ],
+      "id": "6f09c2e5-17cb-4490-ae21-644f5efb81b5",
+      "name": "Get many labels in Gmail",
+      "webhookId": "0abcca1f-29ce-4a43-a765-bd2c956b029c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "HwIjKCniygOjVZuR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Label_Names_or_IDs', `based on the label input, choose which label to add (it should be a label with type: user)`, 'string') }}"
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.1,
+      "position": [
+        80,
+        352
+      ],
+      "id": "2761999d-2110-43e8-9d2b-4f96e7094639",
+      "name": "Add label to message in Gmail",
+      "webhookId": "f218c45d-be25-4969-b2a1-4748033f185b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "HwIjKCniygOjVZuR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Subject:  {{ $json.subject }}\nBody: {{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an AI email assistant. Your task is to read the email’s subject and body, then do three things:\n\nSummarize the email in 2–3 clear, concise sentences.\n\nCategorize the email using one of the following labels: Sales, Support, Personal, Scheduling, Newsletter, or Other.\n\nWrite a reply that is professional, friendly, and helpful—keep it human and natural, not robotic.\n\nMake sure the summary is accurate, the label is appropriate, and the reply addresses the sender's message clearly."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        144
+      ],
+      "id": "46b9080d-2cc0-44fd-b22d-581ece20c13c",
+      "name": "Label, Summary, Response"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Label:  {{ $json.output.label }}",
+        "options": {
+          "systemMessage": "Based on the given Label, apply the appropriate label to the email using the provided tool.\nMake sure the label is accurately assigned and follows the category definitions. No need to explain—just take the action."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        0,
+        144
+      ],
+      "id": "2c2a728c-b555-4e35-b839-4d21920bd19b",
+      "name": "Add Labels to gmail"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $('Gmail Trigger').item.json.subject }}",
+        "message": "={{ $json.output.response }}",
+        "options": {
+          "threadId": "={{ $('Gmail Trigger').item.json.threadId }}",
+          "sendTo": "={{ $('Gmail Trigger').item.json.from.value.map(item => item.address).join(\", \") }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        -16
+      ],
+      "id": "ba67911e-7c58-4d83-8cc3-46f6553ea8bd",
+      "name": "Create a draft",
+      "webhookId": "dc8783d6-d0f8-44dc-aef0-83136604d4ee",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "HwIjKCniygOjVZuR",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Label, Summary, Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Label, Summary, Response",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Label, Summary, Response",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Add Labels to gmail",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many labels in Gmail": {
+      "ai_tool": [
+        [
+          {
+            "node": "Add Labels to gmail",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add label to message in Gmail": {
+      "ai_tool": [
+        [
+          {
+            "node": "Add Labels to gmail",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label, Summary, Response": {
+      "main": [
+        [
+          {
+            "node": "Add Labels to gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9ca35b12-7da1-4f33-a5bd-7c8d6a231baa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4275106c8fd02c2533edab3f7741b7db420af0691c825fa5d46bbabd00ca51b7"
+  },
+  "id": "xrtRpLRaFV3Y4kVW",
+  "tags": []
+}
